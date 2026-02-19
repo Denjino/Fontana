@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fontana — Extract & Download Fonts</title>
+  <meta name="description" content="Extract, preview, and download fonts from any website. Convert to TTF format with one click.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛲</text></svg>">
+</head>
+<body>
+  <!-- Decorative background elements -->
+  <div class="bg-decor">
+    <svg class="bg-circle bg-circle-1" viewBox="0 0 200 200" fill="none">
+      <circle cx="100" cy="100" r="95" stroke-dasharray="8 6" stroke-width="1"/>
+      <circle cx="100" cy="100" r="70" stroke-dasharray="3 4" stroke-width="0.5"/>
+    </svg>
+    <svg class="bg-circle bg-circle-2" viewBox="0 0 300 300" fill="none">
+      <path d="M150 10 A140 140 0 0 1 290 150" stroke-dasharray="6 8" stroke-width="1"/>
+      <path d="M150 30 A120 120 0 0 1 270 150" stroke-dasharray="4 6" stroke-width="0.5"/>
+    </svg>
+    <svg class="bg-lines" viewBox="0 0 400 200" fill="none">
+      <line x1="0" y1="100" x2="400" y2="100" stroke-dasharray="12 8" stroke-width="0.5"/>
+      <line x1="200" y1="0" x2="200" y2="200" stroke-dasharray="12 8" stroke-width="0.5"/>
+    </svg>
+  </div>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-top">
+        <div class="header-label">FONT EXTRACTION UTILITY</div>
+        <div class="header-version">v1.0 // SYS.ACTIVE</div>
+      </div>
+      <div class="logo-section">
+        <div class="logo-deco-left">
+          <svg viewBox="0 0 60 60" fill="none" class="logo-svg">
+            <circle cx="30" cy="30" r="28" stroke-dasharray="4 3" stroke-width="1"/>
+            <circle cx="30" cy="30" r="18" stroke-width="0.7"/>
+            <line x1="30" y1="2" x2="30" y2="58" stroke-dasharray="2 3" stroke-width="0.5"/>
+            <line x1="2" y1="30" x2="58" y2="30" stroke-dasharray="2 3" stroke-width="0.5"/>
+          </svg>
+        </div>
+        <h1 class="logo">
+          <span class="logo-f">F</span>ONTANA
+        </h1>
+        <div class="logo-deco-right">
+          <svg viewBox="0 0 80 40" fill="none" class="logo-svg">
+            <path d="M5 35 Q40 -5 75 35" stroke-width="1" stroke-dasharray="4 3"/>
+            <path d="M15 35 Q40 5 65 35" stroke-width="0.7"/>
+            <circle cx="40" cy="15" r="3" stroke-width="0.7"/>
+          </svg>
+        </div>
+      </div>
+      <p class="tagline">Extract <span class="accent">&</span> download fonts from any website</p>
+    </header>
+
+    <!-- Input Section -->
+    <section class="input-section">
+      <div class="input-header">
+        <span class="input-label">TARGET URL // INPUT</span>
+        <span class="input-freq">
+          <svg viewBox="0 0 40 20" fill="none" class="freq-wave">
+            <path d="M0 10 Q5 0 10 10 Q15 20 20 10 Q25 0 30 10 Q35 20 40 10" stroke-width="1.2"/>
+          </svg>
+        </span>
+      </div>
+      <div class="input-wrapper">
+        <div class="input-prefix">https://</div>
+        <input
+          type="text"
+          id="urlInput"
+          class="url-input"
+          placeholder="enter website address..."
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <button id="extractBtn" class="extract-btn">
+          <span class="btn-text">EXTRACT</span>
+          <svg viewBox="0 0 24 24" fill="none" class="btn-icon">
+            <path d="M5 12h14M12 5l7 7-7 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-footer">
+        <span class="input-hint">Paste any URL to discover its fonts</span>
+        <span class="input-dots">· · · · · · ·</span>
+      </div>
+    </section>
+
+    <!-- Loading State -->
+    <section id="loadingSection" class="loading-section hidden">
+      <div class="loader">
+        <svg viewBox="0 0 120 120" fill="none" class="loader-svg">
+          <circle cx="60" cy="60" r="50" stroke-dasharray="8 6" stroke-width="1" class="loader-ring loader-ring-outer"/>
+          <circle cx="60" cy="60" r="35" stroke-dasharray="5 4" stroke-width="1" class="loader-ring loader-ring-inner"/>
+          <circle cx="60" cy="60" r="20" stroke-width="0.7" class="loader-ring loader-ring-core"/>
+        </svg>
+      </div>
+      <div class="loading-text">
+        <span class="loading-label">SCANNING</span>
+        <span class="loading-dots" id="loadingDots">...</span>
+      </div>
+      <div class="loading-status" id="loadingStatus">Fetching page & analyzing stylesheets</div>
+    </section>
+
+    <!-- Error State -->
+    <section id="errorSection" class="error-section hidden">
+      <div class="error-icon">
+        <svg viewBox="0 0 40 40" fill="none">
+          <circle cx="20" cy="20" r="18" stroke-width="1.5"/>
+          <line x1="13" y1="13" x2="27" y2="27" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="27" y1="13" x2="13" y2="27" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="error-text" id="errorText">Something went wrong</div>
+      <button class="retry-btn" id="retryBtn">TRY AGAIN</button>
+    </section>
+
+    <!-- Results Section -->
+    <section id="resultsSection" class="results-section hidden">
+      <div class="results-header">
+        <div class="results-title-row">
+          <h2 class="results-title">DISCOVERED FONTS</h2>
+          <div class="results-count">
+            <span id="fontCount">0</span> font files found
+          </div>
+        </div>
+        <div class="results-source">
+          SOURCE: <span id="sourceUrl" class="source-url"></span>
+        </div>
+        <div class="results-actions">
+          <button id="downloadAllBtn" class="action-btn download-all-btn">
+            <svg viewBox="0 0 20 20" fill="none" class="action-icon">
+              <path d="M10 3v10M6 9l4 4 4-4M3 15v2h14v-2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            DOWNLOAD ALL
+          </button>
+          <button id="downloadAllTtfBtn" class="action-btn convert-all-btn">
+            <svg viewBox="0 0 20 20" fill="none" class="action-icon">
+              <path d="M10 3v10M6 9l4 4 4-4M3 15v2h14v-2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            ALL AS .TTF
+          </button>
+        </div>
+      </div>
+
+      <div class="font-families" id="fontFamilies">
+        <!-- Font cards injected here -->
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-line"></div>
+      <div class="footer-content">
+        <span class="footer-left">FONTANA // FONT EXTRACTION UTILITY</span>
+        <span class="footer-right">
+          <svg viewBox="0 0 50 20" fill="none" class="footer-wave">
+            <path d="M0 10 Q6.25 0 12.5 10 Q18.75 20 25 10 Q31.25 0 37.5 10 Q43.75 20 50 10" stroke-width="1"/>
+          </svg>
+        </span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
