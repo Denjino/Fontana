@@ -308,7 +308,7 @@
     }
   }
 
-  // ---- WOFF/WOFF2 to TTF conversion ----
+  // ---- Convert & download as TTF (server-side conversion) ----
   async function downloadAndConvertToTtf(url, filename, sourceFormat, btnEl) {
     if (btnEl) {
       btnEl.disabled = true;
@@ -316,11 +316,10 @@
     }
 
     try {
-      // First download the font binary
       const res = await fetch("/.netlify/functions/download-font", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, filename }),
+        body: JSON.stringify({ url, filename, convertToTtf: true }),
       });
 
       if (!res.ok) {
@@ -328,23 +327,7 @@
         throw new Error(err.error || `HTTP ${res.status}`);
       }
 
-      const arrayBuffer = await res.arrayBuffer();
-      let ttfBuffer;
-
-      if (sourceFormat === "woff2") {
-        ttfBuffer = await decompressWoff2(arrayBuffer);
-      } else if (sourceFormat === "woff") {
-        ttfBuffer = convertWoffToTtf(arrayBuffer);
-      } else if (sourceFormat === "otf") {
-        // OTF can't be trivially converted to TTF without full rasterization
-        // Serve as-is with .ttf extension (most systems handle OTF fine)
-        ttfBuffer = arrayBuffer;
-        showToast("Note: OTF served as-is — most systems support it natively", "info");
-      } else {
-        ttfBuffer = arrayBuffer;
-      }
-
-      const blob = new Blob([ttfBuffer], { type: "font/ttf" });
+      const blob = await res.blob();
       triggerDownload(blob, filename);
       showToast(`Converted & downloaded ${filename}`, "success");
     } catch (e) {
@@ -355,217 +338,6 @@
         btnEl.textContent = ".TTF";
       }
     }
-  }
-
-  // ---- WOFF to TTF (strip WOFF header, decompress tables) ----
-  function convertWoffToTtf(woffBuffer) {
-    const view = new DataView(woffBuffer);
-    const signature = view.getUint32(0);
-
-    // Verify WOFF signature 'wOFF'
-    if (signature !== 0x774f4646) {
-      throw new Error("Not a valid WOFF file");
-    }
-
-    const numTables = view.getUint16(12);
-    const totalSfntSize = view.getUint32(16);
-
-    // Create output buffer
-    const out = new Uint8Array(totalSfntSize);
-    const outView = new DataView(out.buffer);
-
-    // Write OTF/TTF header
-    const flavor = view.getUint32(4);
-    outView.setUint32(0, flavor);
-    outView.setUint16(4, numTables);
-
-    // Calculate search range, entry selector, range shift
-    let searchRange = 1;
-    let entrySelector = 0;
-    while (searchRange * 2 <= numTables) {
-      searchRange *= 2;
-      entrySelector++;
-    }
-    searchRange *= 16;
-    const rangeShift = numTables * 16 - searchRange;
-
-    outView.setUint16(6, searchRange);
-    outView.setUint16(8, entrySelector);
-    outView.setUint16(10, rangeShift);
-
-    // Read table directory entries from WOFF
-    const tables = [];
-    let woffOffset = 44; // WOFF table directory starts at offset 44
-    for (let i = 0; i < numTables; i++) {
-      const tag = view.getUint32(woffOffset);
-      const offset = view.getUint32(woffOffset + 4);
-      const compLength = view.getUint32(woffOffset + 8);
-      const origLength = view.getUint32(woffOffset + 12);
-      const origChecksum = view.getUint32(woffOffset + 16);
-      tables.push({ tag, offset, compLength, origLength, origChecksum });
-      woffOffset += 20;
-    }
-
-    // Write table data and OTF table directory
-    let sfntOffset = 12 + numTables * 16; // After the OTF header + table records
-    // Align to 4 bytes
-    sfntOffset = (sfntOffset + 3) & ~3;
-
-    for (let i = 0; i < tables.length; i++) {
-      const t = tables[i];
-      const dirOffset = 12 + i * 16;
-
-      outView.setUint32(dirOffset, t.tag);
-      outView.setUint32(dirOffset + 4, t.origChecksum);
-      outView.setUint32(dirOffset + 8, sfntOffset);
-      outView.setUint32(dirOffset + 12, t.origLength);
-
-      // Copy/decompress table data
-      const compData = new Uint8Array(woffBuffer, t.offset, t.compLength);
-
-      if (t.compLength < t.origLength) {
-        // Compressed with zlib — try to decompress
-        try {
-          const decompressed = inflateRaw(compData);
-          out.set(decompressed.subarray(0, t.origLength), sfntOffset);
-        } catch {
-          // If decompression fails, copy raw
-          out.set(compData, sfntOffset);
-        }
-      } else {
-        out.set(compData.subarray(0, t.origLength), sfntOffset);
-      }
-
-      sfntOffset += t.origLength;
-      // Pad to 4-byte boundary
-      while (sfntOffset % 4 !== 0) sfntOffset++;
-    }
-
-    return out.buffer;
-  }
-
-  // ---- Minimal inflate (for WOFF zlib decompression) ----
-  // WOFF tables use raw deflate (after 2-byte zlib header)
-  function inflateRaw(data) {
-    // Strip 2-byte zlib header if present
-    let start = 0;
-    if (data[0] === 0x78) {
-      start = 2; // Skip zlib header
-    }
-
-    // Use DecompressionStream API if available
-    // Fallback: return data as-is (won't break, just no decompression)
-    const blob = new Blob([data.subarray(start)]);
-    // We'll use a synchronous approach for the conversion
-    // Since DecompressionStream is async, we'll use a simpler method
-
-    // Try using the browser's built-in decompression
-    return decompressSync(data);
-  }
-
-  function decompressSync(compressedData) {
-    // For WOFF conversion, use DecompressionStream via sync wrapper
-    // This is a best-effort approach
-    return compressedData;
-  }
-
-  // Async WOFF decompression using DecompressionStream
-  async function decompressWoffTable(compData) {
-    // Strip zlib header (2 bytes) and checksum (4 bytes at end)
-    let start = 0;
-    if (compData[0] === 0x78) start = 2;
-    const deflateData = compData.subarray(start, compData.length - 4);
-
-    if (typeof DecompressionStream !== "undefined") {
-      const ds = new DecompressionStream("raw");
-      const writer = ds.writable.getWriter();
-      const reader = ds.readable.getReader();
-
-      writer.write(deflateData);
-      writer.close();
-
-      const chunks = [];
-      let totalLength = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        totalLength += value.length;
-      }
-
-      const result = new Uint8Array(totalLength);
-      let offset = 0;
-      for (const chunk of chunks) {
-        result.set(chunk, offset);
-        offset += chunk.length;
-      }
-      return result;
-    }
-
-    // Fallback: return as-is
-    return compData;
-  }
-
-  // ---- WOFF2 decompression (uses Brotli via DecompressionStream or wasm) ----
-  async function decompressWoff2(woff2Buffer) {
-    // WOFF2 uses Brotli compression which is more complex
-    // We'll try to use a canvas-based approach or serve the original
-    // For reliable WOFF2→TTF, we load a dedicated library
-
-    // Try loading woff2-decoder if not already loaded
-    if (!window._woff2Module) {
-      try {
-        await loadWoff2Decoder();
-      } catch {
-        // If we can't load the decoder, provide the raw file
-        showToast("WOFF2 decoder unavailable — downloading original format", "info");
-        return woff2Buffer;
-      }
-    }
-
-    if (window._woff2Module && window._woff2Module.decode) {
-      const ttfData = window._woff2Module.decode(new Uint8Array(woff2Buffer));
-      if (ttfData) return ttfData.buffer;
-    }
-
-    return woff2Buffer;
-  }
-
-  async function loadWoff2Decoder() {
-    // Load the woff2 decoder from a CDN
-    return new Promise((resolve, reject) => {
-      if (window._woff2Module) return resolve();
-
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/wawoff2@2.0.1/build/decompress_binding.js";
-      script.onload = () => {
-        // The module needs initialization
-        if (typeof Module !== "undefined") {
-          if (Module.onRuntimeInitialized) {
-            const origInit = Module.onRuntimeInitialized;
-            Module.onRuntimeInitialized = () => {
-              origInit();
-              window._woff2Module = Module;
-              resolve();
-            };
-          } else {
-            Module.onRuntimeInitialized = () => {
-              window._woff2Module = Module;
-              resolve();
-            };
-          }
-          // If already initialized
-          if (Module.calledRun) {
-            window._woff2Module = Module;
-            resolve();
-          }
-        } else {
-          reject(new Error("WOFF2 module failed to load"));
-        }
-      };
-      script.onerror = () => reject(new Error("Failed to load WOFF2 decoder"));
-      document.head.appendChild(script);
-    });
   }
 
   // ---- Trigger file download ----
