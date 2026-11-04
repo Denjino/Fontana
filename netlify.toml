@@ -3,6 +3,9 @@
   functions = "netlify/functions"
   command = "npm install"
 
+[build.environment]
+  NODE_VERSION = "22"
+
 [functions]
   node_bundler = "esbuild"
 
